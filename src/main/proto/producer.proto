@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package meta.fan.ms_kafka.grpc;
+option java_multiple_files = true;
+option java_package = "meta.fan.ms_kafka.grpc.producer";
+
+service ProducerService {
+  rpc SendMessage (ProduceRequest) returns (ProduceResponse);
+}
+
+message ProduceRequest {
+  string topic = 1;
+  string key = 2;
+  bytes payload = 3;
+}
+
+message ProduceResponse {
+  bool success = 1;
+  string message_id = 2;
+  int32 partition = 3;
+  int64 offset = 4;
+  string error_message = 5;
+}
