@@ -8,24 +8,32 @@ services:
       - "8087:8087"
       - "9090:9090"
     environment:
-      # Directing both configuration paths directly to Kafka's internal port
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
       SPRING_CLOUD_CONSUL_HOST: consul
       SPRING_CLOUD_CONSUL_PORT: 8500
       SPRING_DATA_REDIS_HOST: redis
+      KAFKA_CONNECT_URL: http://kafka-connect:8083/connectors
     depends_on:
-      - kafka
-      - consul
-      - redis
+      kafka:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   kafka-connect:
     image: confluentinc/cp-kafka-connect:7.6.0
     container_name: kafka-connect
     ports:
-       - "8083:8083"
+      - "8083:8083"
     environment:
-      # Containers MUST use the internal listener (29092)
       CONNECT_BOOTSTRAP_SERVERS: "kafka:29092"
       CONNECT_REST_PORT: 8083
       CONNECT_GROUP_ID: gateway-connect-group
@@ -37,7 +45,14 @@ services:
       CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
     depends_on:
-       - kafka
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   kafka:
     image: bitnami/kafka:3.7.0
     container_name: kafka
@@ -46,21 +61,24 @@ services:
     environment:
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_CFG_PROCESS_ROLES=broker,controller
-
-      # 1. Define three distinct listeners (2 for data traffic, 1 for cluster management)
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-
-      # 2. Bind the listener interfaces inside the container
       - KAFKA_CFG_LISTENERS=INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-
-      # 3. CRITICAL: Hand out the correct maps depending on where the application is connecting from
       - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:29092,EXTERNAL://localhost:9092
-
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_LOG_RETENTION_HOURS=168
+      - KAFKA_CFG_LOG_SEGMENT_BYTES=1073741824
+      - KAFKA_CFG_DEFAULT_REPLICATION_FACTOR=1
+      - KAFKA_CFG_NUM_PARTITIONS=3
     volumes:
       - kafka_data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:29092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -69,10 +87,10 @@ services:
       - "8080:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=local
-      # Containers MUST use the internal listener (29092)
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   consul:
     image: hashicorp/consul:1.18
@@ -80,18 +98,33 @@ services:
     ports:
       - "8500:8500"
     command: "agent -dev -client=0.0.0.0"
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   redis:
     image: redis:7.2-alpine
     container_name: redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   zipkin:
     image: openzipkin/zipkin:latest
     container_name: zipkin
     ports:
       - "9411:9411"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   prometheus:
     image: prom/prometheus:latest
@@ -100,6 +133,14 @@ services:
       - "9095:9095"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.listen-address=:9095'
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9095/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   grafana:
     image: grafana/grafana:latest
@@ -107,7 +148,13 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   kafka_data:

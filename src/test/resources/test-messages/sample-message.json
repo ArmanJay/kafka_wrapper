@@ -1,0 +1,15 @@
+{
+  "id": 12345,
+  "type": "VIP",
+  "customer": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "tier": "GOLD"
+  },
+  "items": [
+    {"id": 1, "name": "Laptop", "price": 1299.99},
+    {"id": 2, "name": "Mouse", "price": 29.99}
+  ],
+  "total": 1329.98,
+  "timestamp": "2024-01-15T10:30:00Z"
+}

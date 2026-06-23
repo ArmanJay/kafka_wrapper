@@ -14,35 +14,103 @@ spring:
     streams:
       bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       application-id: enterprise-gateway-streams
+      properties:
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: org.apache.kafka.common.serialization.Serdes$ByteArraySerde
+        # Streams configuration for production
+        num.stream.threads: 2
+        processing.guarantee: exactly_once_v2
+        commit.interval.ms: 1000
+        state.dir: /tmp/kafka-streams
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
       acks: all
       retries: 3
+      properties:
+        max.in.flight.requests.per.connection: 1
+        enable.idempotence: true
     consumer:
       group-id: default-wrapper-group
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      properties:
+        isolation.level: read_committed
+        max.poll.records: 100
+    listener:
+      # Maximum time to wait for ack after processing
+      poll-timeout: 5000
+
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: 6379
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 86400000 # 24 hours
+      cache-null-values: false
 
 grpc:
   server:
     port: 9090
+  client:
+    kafka-service:
+      address: static://localhost:9090
+      enable-keep-alive: true
+      keep-alive-time: 30s
 
 management:
   endpoint:
     health:
       show-details: always
+      group:
+        readiness:
+          include: kafka,redis,consul,discoveryComposite
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus
+        include: health,metrics,prometheus,info
+  health:
+    liveness-state:
+      enabled: true
+    readiness-state:
+      enabled: true
   tracing:
     sampling:
       probability: 1.0
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+# Custom configuration for Kafka Connect
+kafka:
+  connect:
+    url: ${KAFKA_CONNECT_URL:http://localhost:8083/connectors}
+
+# Default topics to create on startup
+topics:
+  - name: enterprise-topic
+    partitions: 3
+    replication-factor: 1
+  - name: enterprise-topic-DLT
+    partitions: 3
+    replication-factor: 1
+  - name: orders-inbound
+    partitions: 5
+    replication-factor: 1
+  - name: orders-vip-processed
+    partitions: 3
+    replication-factor: 1
+
 server:
   port: 8087
