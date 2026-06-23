@@ -179,6 +179,21 @@
 				<configuration>
 					<failOnError>false</failOnError>
 					<retryOnError>true</retryOnError>
+					<excludeDefaultDirectories>true</excludeDefaultDirectories>
+					<filesets>
+						<fileset>
+							<directory>${project.build.directory}</directory>
+							<includes>
+								<include>**/*.jar</include>
+								<include>**/*.war</include>
+								<include>classes/**</include>
+								<include>test-classes/**</include>
+								<include>generated-sources/**</include>
+								<include>generated-test-sources/**</include>
+							</includes>
+							<followSymlinks>false</followSymlinks>
+						</fileset>
+					</filesets>
 				</configuration>
 			</plugin>
 			<plugin>
