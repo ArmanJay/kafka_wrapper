@@ -1,15 +1,19 @@
-
 spring:
   application:
     name: kafka-wrapper-service
   cloud:
     consul:
-      host: localhost
-      port: 8500
+      host: ${SPRING_CLOUD_CONSUL_HOST:localhost}
+      port: ${SPRING_CLOUD_CONSUL_PORT:8500}
       discovery:
         register: true
   kafka:
-    bootstrap-servers: localhost:9092
+    # This unified variable covers standard consumers/producers
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    # This explicit key fixes your exact Streams Thread timeout bug!
+    streams:
+      bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      application-id: enterprise-gateway-streams
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
@@ -22,7 +26,7 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
   data:
     redis:
-      host: localhost
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: 6379
 
 grpc:
@@ -30,6 +34,9 @@ grpc:
     port: 9090
 
 management:
+  endpoint:
+    health:
+      show-details: always
   endpoints:
     web:
       exposure:
