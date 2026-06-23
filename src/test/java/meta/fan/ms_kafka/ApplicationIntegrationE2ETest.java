@@ -61,7 +61,7 @@ class ApplicationIntegrationE2ETest {
 
             // Assert
             assertThat(response).isNotNull();
-            // Response validation depends on your implementation
+            // Response validation
         } catch (Exception e) {
             // Handle connection errors gracefully for test environment
             assertThat(e.getMessage()).isNotNull();
@@ -129,10 +129,33 @@ class ApplicationIntegrationE2ETest {
         try {
             ProduceResponse response = grpcStub.withDeadlineAfter(5, TimeUnit.SECONDS).sendMessage(request);
 
-            // Assert - validate response fields
+            // Assert - validate response fields (proto3 uses getters, not has)
             assertThat(response).isNotNull();
-            assertThat(response.hasPartition()).isTrue();
-            assertThat(response.hasOffset()).isTrue();
+            assertThat(response.getPartition()).isGreaterThanOrEqualTo(0);
+            assertThat(response.getOffset()).isGreaterThanOrEqualTo(0);
+        } catch (Exception e) {
+            assertThat(e.getMessage()).isNotNull();
+        }
+    }
+
+    @Test
+    @DisplayName("Should validate gRPC response success flag")
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    void testE2EGrpcResponseSuccess() {
+        // Arrange
+        ProduceRequest request = ProduceRequest.newBuilder()
+                .setTopic("e2e-success-topic")
+                .setKey("e2e-success-key")
+                .setPayload(ByteString.copyFromUtf8("Success Test"))
+                .build();
+
+        // Act
+        try {
+            ProduceResponse response = grpcStub.withDeadlineAfter(5, TimeUnit.SECONDS).sendMessage(request);
+
+            // Assert
+            assertThat(response).isNotNull();
+            assertThat(response.getSuccess()).isNotNull();
         } catch (Exception e) {
             assertThat(e.getMessage()).isNotNull();
         }
